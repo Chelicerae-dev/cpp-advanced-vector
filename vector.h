@@ -330,51 +330,31 @@ void Vector<T>::Resize(size_t new_size) {
 
 template <typename T>
 void Vector<T>::PushBack(const T& value) {
-    if (size_ == data_.Capacity()) {
-        RawMemory<T> temp((size_ == 0) ? 1 : 2 * size_);
-        new (temp + size_) T(value);
-        UninitializedCopyMove(data_.GetAddress(), size_, temp.GetAddress());
-        std::destroy_n(data_.GetAddress(), size_);
-        data_.Swap(temp);
-    } else {
-        new (data_ + size_) T(value);
-    }
-    ++size_;
+    EmplaceBack(value);
 }
 
 //Я не знаю почему не работает адекватно единый вариант с std::forward и передачей по значению - появляются проблемы с перемещением лишним или копированием
+/*  Если я делаю единый метод, закомментированный ниже, у меня получается одно лишнее перемещение (main.cpp:330), я повоевал какое-то время и обнаружил что
+ *  в раздельных методах такой проблемы нет
+ *  PushBack(T value) {
+ *      EmplaceBack(std::forward<T>(value));
+ *  }
+*/
 template <typename T>
 void Vector<T>::PushBack(T&& value) {
-    if (size_ == data_.Capacity()) {
-        RawMemory<T> temp((size_ == 0) ? 1 : 2 * size_);
-        new (temp + size_) T(std::move(value));
-        UninitializedCopyMove(data_.GetAddress(), size_, temp.GetAddress());
-        std::destroy_n(data_.GetAddress(), size_);
-        data_.Swap(temp);
-    } else {
-        new (data_ + size_) T(std::move(value));
-    }
-    ++size_;
+    EmplaceBack(std::forward<T>(value));
 }
 
 template <typename T>
 void Vector<T>::PopBack() /* noexcept */ {
-    std::destroy(data_ + size_ - 1, data_ + size_);
-    size_--;
+    if(size_ > 0) {
+        std::destroy(data_ + size_ - 1, data_ + size_);
+        size_--;
+    }
 }
 
 template <typename T>
 template <typename... Args>
 T& Vector<T>::EmplaceBack(Args&&... args) {
-    if (size_ == data_.Capacity()) {
-        RawMemory<T> temp((size_ == 0) ? 1 : 2 * size_);
-        new (temp.GetAddress() + size_) T(std::forward<Args>(args)...);
-        UninitializedCopyMove(data_.GetAddress(), size_, temp.GetAddress());
-        std::destroy_n(data_.GetAddress(), size_);
-        data_.Swap(temp);
-    } else {
-        new (data_ + size_) T(std::forward<Args>(args)...);
-    }
-    ++size_;
-    return *(data_ + size_ - 1);
+    return *Emplace(cbegin() + size_, std::forward<Args>(args)...);
 }
